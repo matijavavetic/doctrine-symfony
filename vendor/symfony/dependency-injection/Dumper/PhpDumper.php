@@ -227,7 +227,7 @@ class PhpDumper extends Dumper
                     $regex = preg_quote(\DIRECTORY_SEPARATOR.$dir[$i], '#').$regex;
                 } while (0 < --$i);
 
-                $this->targetDirRegex = '#'.preg_quote($dir[0], '#').$regex.'#';
+                $this->targetDirRegex = '#(^|file://|[:;, \|\r\n])'.preg_quote($dir[0], '#').$regex.'#';
             }
         }
 
@@ -326,7 +326,7 @@ EOF;
             $this->asFiles = false;
 
             if ($this->preload && null !== $autoloadFile = $this->getAutoloadFile()) {
-                $autoloadFile = substr($this->export($autoloadFile), 2, -1);
+                $autoloadFile = trim($this->export($autoloadFile), '()\\');
 
                 $preloadedFiles = array_reverse($preloadedFiles);
                 $preloadedFiles = implode("';\nrequire __DIR__.'/", $preloadedFiles);
@@ -338,6 +338,10 @@ EOF;
 // You can reference it in the "opcache.preload" php.ini setting on PHP >= 7.4 when preloading is desired
 
 use Symfony\Component\DependencyInjection\Dumper\Preloader;
+
+if (in_array(PHP_SAPI, ['cli', 'phpdbg'], true)) {
+    return;
+}
 
 require $autoloadFile;
 require __DIR__.'/$preloadedFiles';
@@ -859,19 +863,57 @@ EOF;
                 }
             }
 
-            if ($this->getProxyDumper()->isProxyCandidate($definition)) {
-                $factoryCode = $asFile ? "\$this->load('%s', false)" : '$this->%s(false)';
-                $factoryCode = $this->getProxyDumper()->getProxyFactoryCode($definition, $id, sprintf($factoryCode, $methodName));
+            if (!$definition->isShared()) {
+                $factory = sprintf('$this->factories%s[%s]', $definition->isPublic() ? '' : "['service_container']", $this->doExport($id));
+            }
+
+            if ($isProxyCandidate = $this->getProxyDumper()->isProxyCandidate($definition)) {
+                if (!$definition->isShared()) {
+                    $code .= sprintf('        %s = %1$s ?? ', $factory);
+
+                    if ($asFile) {
+                        $code .= "function () {\n";
+                        $code .= "            return self::do(\$container);\n";
+                        $code .= "        };\n\n";
+                    } else {
+                        $code .= sprintf("\\Closure::fromCallable([\$this, '%s']);\n\n", $methodName);
+                    }
+                }
+
+                $factoryCode = $asFile ? 'self::do($container, false)' : sprintf('$this->%s(false)', $methodName);
+                $factoryCode = $this->getProxyDumper()->getProxyFactoryCode($definition, $id, $factoryCode);
                 $code .= $asFile ? preg_replace('/function \(([^)]*+)\) {/', 'function (\1) use ($container) {', $factoryCode) : $factoryCode;
             }
 
-            $code .= $this->addServiceInclude($id, $definition);
-            $code .= $this->addInlineService($id, $definition);
+            $c = $this->addServiceInclude($id, $definition);
+
+            if ('' !== $c && $isProxyCandidate && !$definition->isShared()) {
+                $c = implode("\n", array_map(function ($line) { return $line ? '    '.$line : $line; }, explode("\n", $c)));
+                $code .= "        static \$include = true;\n\n";
+                $code .= "        if (\$include) {\n";
+                $code .= $c;
+                $code .= "            \$include = false;\n";
+                $code .= "        }\n\n";
+            } else {
+                $code .= $c;
+            }
+
+            $c = $this->addInlineService($id, $definition);
+
+            if (!$isProxyCandidate && !$definition->isShared()) {
+                $c = implode("\n", array_map(function ($line) { return $line ? '    '.$line : $line; }, explode("\n", $c)));
+                $lazyloadInitialization = $definition->isLazy() ? '$lazyLoad = true' : '';
+
+                $c = sprintf("        %s = function (%s) {\n%s        };\n\n        return %1\$s();\n", $factory, $lazyloadInitialization, $c);
+            }
+
+            $code .= $c;
         }
 
         if ($asFile) {
             $code = str_replace('$this', '$container', $code);
             $code = str_replace('function () {', 'function () use ($container) {', $code);
+            $code = str_replace('function ($lazyLoad = true) {', 'function ($lazyLoad = true) use ($container) {', $code);
         }
 
         $code .= "    }\n";
@@ -912,6 +954,10 @@ EOF;
         }
 
         if ('service_container' === $targetId || isset($this->referenceVariables[$targetId])) {
+            return '';
+        }
+
+        if ($this->container->hasDefinition($targetId) && ($def = $this->container->getDefinition($targetId)) && !$def->isShared()) {
             return '';
         }
 
@@ -1876,10 +1922,14 @@ EOF;
                     $code = sprintf('$this->%s[%s] = %s', $definition->isPublic() ? 'services' : 'privates', $this->doExport($id), $code);
                 }
                 $code = "($code)";
-            } elseif ($this->asFiles && !$this->inlineFactories && !$this->isHotPath($definition)) {
-                $code = sprintf("\$this->load('%s')", $this->generateMethodName($id));
             } else {
-                $code = sprintf('$this->%s()', $this->generateMethodName($id));
+                $code = $this->asFiles && !$this->inlineFactories && !$this->isHotPath($definition) ? "\$this->load('%s')" : '$this->%s()';
+                $code = sprintf($code, $this->generateMethodName($id));
+
+                if (!$definition->isShared()) {
+                    $factory = sprintf('$this->factories%s[%s]', $definition->isPublic() ? '' : "['service_container']", $this->doExport($id));
+                    $code = sprintf('(isset(%s) ? %1$s() : %s)', $factory, $code);
+                }
             }
             if ($definition->isShared() && !isset($this->singleUsePrivateIds[$id])) {
                 $code = sprintf('($this->%s[%s] ?? %s)', $definition->isPublic() ? 'services' : 'privates', $this->doExport($id), $code);
@@ -2029,12 +2079,21 @@ EOF;
      */
     private function export($value)
     {
-        if (null !== $this->targetDirRegex && \is_string($value) && preg_match($this->targetDirRegex, $value, $matches, PREG_OFFSET_CAPTURE)) {
-            $prefix = $matches[0][1] ? $this->doExport(substr($value, 0, $matches[0][1]), true).'.' : '';
+        if (null !== $this->targetDirRegex && \is_string($value) && preg_match($this->targetDirRegex, $value, $matches, \PREG_OFFSET_CAPTURE)) {
             $suffix = $matches[0][1] + \strlen($matches[0][0]);
-            $suffix = isset($value[$suffix]) ? '.'.$this->doExport(substr($value, $suffix), true) : '';
+            $matches[0][1] += \strlen($matches[1][0]);
+            $prefix = $matches[0][1] ? $this->doExport(substr($value, 0, $matches[0][1]), true).'.' : '';
+
+            if ('\\' === \DIRECTORY_SEPARATOR && isset($value[$suffix])) {
+                $cookie = '\\'.random_int(100000, \PHP_INT_MAX);
+                $suffix = '.'.$this->doExport(str_replace('\\', $cookie, substr($value, $suffix)), true);
+                $suffix = str_replace('\\'.$cookie, "'.\\DIRECTORY_SEPARATOR.'", $suffix);
+            } else {
+                $suffix = isset($value[$suffix]) ? '.'.$this->doExport(substr($value, $suffix), true) : '';
+            }
+
             $dirname = $this->asFiles ? '$this->containerDir' : '__DIR__';
-            $offset = 1 + $this->targetDirMaxMatches - \count($matches);
+            $offset = 2 + $this->targetDirMaxMatches - \count($matches);
 
             if (0 < $offset) {
                 $dirname = sprintf('\dirname(__DIR__, %d)', $offset + (int) $this->asFiles);
@@ -2099,9 +2158,7 @@ EOF;
 
     private function getAutoloadFile(): ?string
     {
-        if (null === $this->targetDirRegex) {
-            return null;
-        }
+        $file = null;
 
         foreach (spl_autoload_functions() as $autoloader) {
             if (!\is_array($autoloader)) {
@@ -2120,14 +2177,14 @@ EOF;
                 if (0 === strpos($class, 'ComposerAutoloaderInit') && $class::getLoader() === $autoloader[0]) {
                     $file = \dirname((new \ReflectionClass($class))->getFileName(), 2).'/autoload.php';
 
-                    if (preg_match($this->targetDirRegex.'A', $file)) {
+                    if (null !== $this->targetDirRegex && preg_match($this->targetDirRegex.'A', $file)) {
                         return $file;
                     }
                 }
             }
         }
 
-        return null;
+        return $file;
     }
 
     private function getClasses(Definition $definition, string $id): array
