@@ -29,7 +29,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1602485868592</updated>
-      <workItem from="1602485869621" duration="2341000" />
+      <workItem from="1602485869621" duration="2506000" />
     </task>
     <servers />
   </component>
@@ -37,6 +37,10 @@
     <option name="version" value="3" />
   </component>
   <component name="WindowStateProjectService">
+    <state x="1153" y="580" width="1397" height="314" key="#SQL_Dialects" timestamp="1602488377224">
+      <screen x="0" y="27" width="2560" height="1413" />
+    </state>
+    <state x="1153" y="580" width="1397" height="314" key="#SQL_Dialects/0.27.2560.1413@0.27.2560.1413" timestamp="1602488377224" />
     <state width="1204" height="395" key="GridCell.Tab.0.bottom" timestamp="1602485917480">
       <screen x="0" y="27" width="2560" height="1413" />
     </state>
