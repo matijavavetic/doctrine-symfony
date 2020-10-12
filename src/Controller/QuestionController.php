@@ -4,7 +4,6 @@ namespace App\Controller;
 
 use App\Entity\Question;
 use App\Repository\QuestionRepository;
-use App\Service\MarkdownHelper;
 use Doctrine\ORM\EntityManagerInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -92,14 +91,20 @@ EOF
     /**
      * @Route("/questions/{slug}/vote", name="app_question_vote", methods="POST")
      */
-    public function questionVote(Question $question, Request $request)
+    public function questionVote(Question $question, Request $request, EntityManagerInterface $entityManager)
     {
         $direction = $request->request->get('direction');
 
         if ($direction === 'up') {
-            $question->setVotes($question->getVotes() + 1);
+            $question->upVote();
         } elseif ($direction === 'down') {
-            $question->setVotes($question->getVotes() - 1);
+            $question->downVote();
         }
+
+        $entityManager->flush();
+
+        return $this->redirectToRoute('app_question_show', [
+            'slug' => $question->getSlug()
+        ]);
     }
 }
