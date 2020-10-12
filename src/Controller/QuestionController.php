@@ -56,9 +56,14 @@ EOF
     /**
      * @Route("/", name="app_homepage")
      */
-    public function homepage()
+    public function homepage(EntityManagerInterface $entityManager)
     {
-        return $this->render('question/homepage.html.twig');
+        $repository = $entityManager->getRepository(Question::class);
+        $questions = $repository->findAllAskedAtOrderedByNewest();
+
+        return $this->render('question/homepage.html.twig', [
+            'questions' => $questions,
+        ]);
     }
 
     /**
