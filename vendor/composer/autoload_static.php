@@ -88,6 +88,7 @@ class ComposerStaticInitb14b8d8c0f99add3d8816561c1cbc2cd
             'Symfony\\Bridge\\Twig\\' => 20,
             'Symfony\\Bridge\\Monolog\\' => 23,
             'Symfony\\Bridge\\Doctrine\\' => 24,
+            'Stof\\DoctrineExtensionsBundle\\' => 30,
             'Sentry\\SentryBundle\\' => 20,
             'Sentry\\' => 7,
             'Sensio\\Bundle\\FrameworkExtraBundle\\' => 35,
@@ -137,6 +138,7 @@ class ComposerStaticInitb14b8d8c0f99add3d8816561c1cbc2cd
         array (
             'GuzzleHttp\\Psr7\\' => 16,
             'GuzzleHttp\\Promise\\' => 19,
+            'Gedmo\\' => 6,
         ),
         'F' => 
         array (
@@ -165,6 +167,10 @@ class ComposerStaticInitb14b8d8c0f99add3d8816561c1cbc2cd
         'C' => 
         array (
             'Clue\\StreamFilter\\' => 18,
+        ),
+        'B' => 
+        array (
+            'Behat\\Transliterator\\' => 21,
         ),
         'A' => 
         array (
@@ -374,6 +380,10 @@ class ComposerStaticInitb14b8d8c0f99add3d8816561c1cbc2cd
         array (
             0 => __DIR__ . '/..' . '/symfony/doctrine-bridge',
         ),
+        'Stof\\DoctrineExtensionsBundle\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/stof/doctrine-extensions-bundle',
+        ),
         'Sentry\\SentryBundle\\' => 
         array (
             0 => __DIR__ . '/..' . '/sentry/sentry-symfony/src',
@@ -488,6 +498,10 @@ class ComposerStaticInitb14b8d8c0f99add3d8816561c1cbc2cd
         array (
             0 => __DIR__ . '/..' . '/guzzlehttp/promises/src',
         ),
+        'Gedmo\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/gedmo/doctrine-extensions/src',
+        ),
         'Faker\\' => 
         array (
             0 => __DIR__ . '/..' . '/fzaninotto/faker/src/Faker',
@@ -566,6 +580,10 @@ class ComposerStaticInitb14b8d8c0f99add3d8816561c1cbc2cd
         'Clue\\StreamFilter\\' => 
         array (
             0 => __DIR__ . '/..' . '/clue/stream-filter/src',
+        ),
+        'Behat\\Transliterator\\' => 
+        array (
+            0 => __DIR__ . '/..' . '/behat/transliterator/src/Behat/Transliterator',
         ),
         'App\\Tests\\' => 
         array (
